@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Каталог настільних ігор (Vue 3)</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Vue 3 CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js" defer></script>
+    <script src="js/script.js" defer></script>
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>Каталог настільних ігор</h1>
+        </header>
+
+        <main class="container">
+            <!-- Блок фільтрації за жанром -->
+            <div class="filter-section" style="text-align: center; margin-bottom: 20px;">
+                <p>Активний фільтр жанру: <b>{{ currentGenre || 'Всі жанри' }}</b></p>
+                <button v-if="currentGenre" @click="currentGenre = ''" class="reset-btn" style="padding: 5px 10px; background-color: #e63946; color: white; border: none; border-radius: 4px; cursor: pointer;">Скинути фільтр</button>
+            </div>
+
+            <!-- Список карток через компонент та v-for -->
+            <div class="cards" id="games-list">
+                <game-card 
+                    v-for="game in filteredGames" 
+                    :key="game.id"
+                    :id="game.id"
+                    :title="game.title"
+                    :min-players="game.minPlayers"
+                    :max-players="game.maxPlayers"
+                    :genre="game.genre"
+                    :img="game.img"
+                    :owned="game.owned"
+                    @filter="setGenreFilter"
+                    @toggle-owned="toggleOwned">
+                </game-card>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

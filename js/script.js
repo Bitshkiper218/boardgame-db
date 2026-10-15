@@ -1,5 +1,5 @@
 // ==========================================
-// КРОК 2: Базові дані та localStorage (для міграції)
+// КРОК 2: Базові дані та localStorage
 // ==========================================
 function loadFromLocalStorage(defaultData) {
     try {
@@ -18,64 +18,6 @@ const defaultGames = [
     { id: 4, title: 'Козаки', minPlayers: 2, maxPlayers: 4, genre: 'Стратегія', img: 'assets/img/Cossacs.jpg', owned: false },
     { id: 5, title: 'Вуаля', minPlayers: 2, maxPlayers: 6, genre: 'Карткова', img: 'assets/img/Wualia.jpg', owned: false }
 ];
-
-// ==========================================
-// КРОК 5-7: Налаштування IndexedDB та CRUD
-// ==========================================
-function openDB() {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open('BoardGamesDB', 1);
-
-        request.onupgradeneeded = (event) => {
-            const db = event.target.result;
-            if (!db.objectStoreNames.contains('games')) {
-                db.createObjectStore('games', { keyPath: 'id' });
-            }
-        };
-
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
-}
-
-// Додавання або оновлення запису (put)
-async function saveGameToDB(game) {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction('games', 'readwrite');
-        tx.objectStore('games').put(game);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-    });
-}
-
-// Отримання всіх записів
-async function getAllGamesFromDB() {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction('games', 'readonly');
-        const request = tx.objectStore('games').getAll();
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
-}
-
-// ==========================================
-// КРОК 8: Одноразова міграція
-// ==========================================
-async function migrateDataIfNeeded() {
-    const isMigrated = localStorage.getItem('migratedToIDB');
-    if (!isMigrated) {
-        const oldData = loadFromLocalStorage(defaultGames);
-        if (oldData.length > 0) {
-            console.log('Міграція даних з localStorage в IndexedDB... - script.js:71');
-            for (const game of oldData) {
-                await saveGameToDB(game);
-            }
-        }
-        localStorage.setItem('migratedToIDB', 'true');
-    }
-}
 
 // ==========================================
 // КОМПОНЕНТ ТА ДОДАТОК VUE
@@ -107,14 +49,9 @@ const App = {
             games: []
         };
     },
-    async created() {
-        try {
-            await migrateDataIfNeeded();
-            this.games = await getAllGamesFromDB();
-        } catch (error) {
-            console.error('Помилка доступу до бази даних: - script.js:115', error);
-            alert('Не вдалося завантажити базу даних. Перевірте налаштування приватності.');
-        }
+    created() {
+        // При завантаженні сторінки дістаємо дані з localStorage
+        this.games = loadFromLocalStorage(defaultGames);
     },
     computed: {
         filteredGames() {
@@ -126,12 +63,24 @@ const App = {
         setGenreFilter(genre) {
             this.currentGenre = genre;
         },
-        async toggleOwned(id) {
+        toggleOwned(id) {
             const game = this.games.find(g => g.id === id);
             if (game) {
                 game.owned = !game.owned;
-                await saveGameToDB(game);
             }
+        },
+        // ВИМОГА ВИКЛАДАЧА: Функція для збереження в localStorage
+        saveToLocalStorage(gamesArray) {
+            localStorage.setItem('boardgames', JSON.stringify(gamesArray));
+        }
+    },
+    // ВИМОГА ВИКЛАДАЧА: watch з deep: true
+    watch: {
+        games: {
+            handler(newGames) {
+                this.saveToLocalStorage(newGames);
+            },
+            deep: true // Зберігаємо після кожного кліку по кнопці "Зіграно"
         }
     }
 };

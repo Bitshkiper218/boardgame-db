@@ -1,16 +1,6 @@
 // ==========================================
-// КРОК 2: Базові дані та localStorage
+// Базові дані
 // ==========================================
-function loadFromLocalStorage(defaultData) {
-    try {
-        const raw = localStorage.getItem('boardgames');
-        return raw ? JSON.parse(raw) : defaultData;
-    } catch (error) {
-        console.error('Пошкоджені дані в localStorage: - script.js:9', error);
-        return defaultData;
-    }
-}
-
 const defaultGames = [
     { id: 1, title: 'Каркасон', minPlayers: 2, maxPlayers: 5, genre: 'Стратегія', img: 'assets/img/carcassonne.jpg', owned: false },
     { id: 2, title: 'Манчкін', minPlayers: 3, maxPlayers: 6, genre: 'Карткова', img: 'assets/img/munchkin.jpg', owned: false },
@@ -18,6 +8,74 @@ const defaultGames = [
     { id: 4, title: 'Козаки', minPlayers: 2, maxPlayers: 4, genre: 'Стратегія', img: 'assets/img/Cossacs.jpg', owned: false },
     { id: 5, title: 'Вуаля', minPlayers: 2, maxPlayers: 6, genre: 'Карткова', img: 'assets/img/Wualia.jpg', owned: false }
 ];
+
+// ==========================================
+// ЧАСТИНА 1: localStorage (вимога викладача)
+// ==========================================
+function loadFromLocalStorage(defaultData) {
+    try {
+        const raw = localStorage.getItem('boardgames');
+        return raw ? JSON.parse(raw) : defaultData;
+    } catch (error) {
+        return defaultData;
+    }
+}
+
+// ==========================================
+// ЧАСТИНА 2: IndexedDB та CRUD (вимога викладача)
+// ==========================================
+function openDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('BoardGamesDB', 1);
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains('games')) {
+                db.createObjectStore('games', { keyPath: 'id' }); // Створення object store
+            }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// CRUD-транзакція (Update)
+async function saveGameToDB(game) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('games', 'readwrite');
+        tx.objectStore('games').put(game);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
+// CRUD-транзакція (Read)
+async function getAllGamesFromDB() {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('games', 'readonly');
+        const request = tx.objectStore('games').getAll();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// ==========================================
+// ЧАСТИНА 3: Міграція даних (вимога викладача)
+// ==========================================
+async function migrateDataIfNeeded() {
+    const isMigrated = localStorage.getItem('migratedToIDB');
+    if (!isMigrated) {
+        const oldData = loadFromLocalStorage(defaultGames);
+        if (oldData.length > 0) {
+            console.log('Міграція з localStorage в IndexedDB виконана! - script.js:71');
+            for (const game of oldData) {
+                await saveGameToDB(game);
+            }
+        }
+        localStorage.setItem('migratedToIDB', 'true');
+    }
+}
 
 // ==========================================
 // КОМПОНЕНТ ТА ДОДАТОК VUE
@@ -49,9 +107,13 @@ const App = {
             games: []
         };
     },
-    created() {
-        // При завантаженні сторінки дістаємо дані з localStorage
-        this.games = loadFromLocalStorage(defaultGames);
+    async created() {
+        try {
+            await migrateDataIfNeeded(); // Запуск міграції
+            this.games = await getAllGamesFromDB(); // Завантаження з бази
+        } catch (error) {
+            console.error('Помилка БД: - script.js:115', error);
+        }
     },
     computed: {
         filteredGames() {
@@ -63,24 +125,25 @@ const App = {
         setGenreFilter(genre) {
             this.currentGenre = genre;
         },
-        toggleOwned(id) {
+        async toggleOwned(id) {
             const game = this.games.find(g => g.id === id);
             if (game) {
                 game.owned = !game.owned;
+                await saveGameToDB(game); // Зберігаємо в IndexedDB
             }
         },
-        // ВИМОГА ВИКЛАДАЧА: Функція для збереження в localStorage
+        // Заявлена викладачем функція
         saveToLocalStorage(gamesArray) {
             localStorage.setItem('boardgames', JSON.stringify(gamesArray));
         }
     },
-    // ВИМОГА ВИКЛАДАЧА: watch з deep: true
+    // Заявлений викладачем watch
     watch: {
         games: {
             handler(newGames) {
-                this.saveToLocalStorage(newGames);
+                this.saveToLocalStorage(newGames); // Зберігаємо дубль у localStorage
             },
-            deep: true // Зберігаємо після кожного кліку по кнопці "Зіграно"
+            deep: true
         }
     }
 };

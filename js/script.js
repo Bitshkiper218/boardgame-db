@@ -113,6 +113,8 @@ const App = {
             this.games = await getAllGamesFromDB(); // Завантаження з бази
         } catch (error) {
             console.error('Помилка БД: - script.js:115', error);
+            // Додано обробку помилки для користувача:
+            alert('Помилка доступу до бази даних! Переконайтеся, що ваш браузер підтримує IndexedDB і ви не знаходитесь у режимі інкогніто.');
         }
     },
     computed: {
